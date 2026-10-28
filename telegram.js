@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const limits = require('./limits');
+const outages = require('./outages');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 
@@ -13,12 +14,13 @@ let DATA = path.join(__dirname, 'data');
 const file = (n) => path.join(DATA, n);
 const API_BASE = () => process.env.TELEGRAM_API || 'https://api.telegram.org';
 
-const EVENT_KEYS = ['faults', 'warnings', 'cleared', 'grid', 'gridLoad', 'outputLoad', 'battery', 'offline', 'session'];
+const EVENT_KEYS = ['faults', 'warnings', 'cleared', 'grid', 'outage', 'gridLoad', 'outputLoad', 'battery', 'offline', 'session'];
 const DEFAULTS = () => ({ token: '', botName: '', chatId: null, chatName: '', enabled: false, lang: 'uk', events: Object.fromEntries(EVENT_KEYS.map((k) => [k, true])) });
 
 const BATTERY_STEPS = [20, 10, 5]; // % levels that fire a "battery low" message while there is no grid
 const GRID_CONFIRM = 2; // snapshots a grid change must hold before it is reported (power flickers are common)
 const LOAD_CONFIRM = 2; // same for a grid-current level change
+const UNPLANNED_AFTER_S = 5 * 60; // grid absent this long while the schedule says it should be on = unplanned outage
 const LOAD_CALM = 0.85; // current must fall below this share of the warn threshold before the all-clear
 const OFFLINE_S = 10 * 60; // no new data for this long = station offline
 const SESSION_WARN_MS = 24 * 3600 * 1000;
@@ -172,6 +174,17 @@ async function flushQueue() {
 
 // ---------- messages ----------
 
+// One sentence about what the outage schedule says, appended to the "grid lost" message.
+function schedNote(sch) {
+  if (!sch || !sch.state) return '';
+  const uk = cfg.lang === 'uk';
+  const q = sch.queue;
+  if (sch.emergency) return uk ? ' Діє графік аварійних відключень (ГАВ).' : ' An emergency outage schedule (ГАВ) is in force.';
+  if (sch.state === 'off') return uk ? ` За графіком черги ${q}: відключення${sch.until ? ' до ' + sch.until : ''}.` : ` Schedule of queue ${q}: outage${sch.until ? ' until ' + sch.until : ''}.`;
+  if (sch.state === 'switch') return uk ? ` За графіком черги ${q}: час перемикань, світла може не бути.` : ` Schedule of queue ${q}: switching time, power may be absent.`;
+  return uk ? ` ⚠️ За графіком черги ${q} світло мало бути. Чекаю ${UNPLANNED_AFTER_S / 60} хв, чи повернеться.` : ` ⚠️ The schedule of queue ${q} says power should be on. Waiting ${UNPLANNED_AFTER_S / 60} min to see if it returns.`;
+}
+
 const MSG = {
   uk: {
     paired: '✅ Telegram підключено. Сюди приходитимуть сповіщення про станцію HATCAT: аварії, зникнення світла, низький заряд.',
@@ -180,8 +193,9 @@ const MSG = {
     fault: (d, x) => `🔴 ${d}: помилка. ${x}`,
     warning: (d, x) => `⚠️ ${d}: попередження. ${x}`,
     cleared: (d, x, dur) => `✅ ${d}: усунено. ${x}${dur ? ` (тривало ${dur})` : ''}`,
-    gridLost: (d, s) => `🔌 ${d}: світло зникло. Станція живиться від батареї. Заряд ${s.soc} %, навантаження ${s.load} Вт${s.runtime ? `, вистачить приблизно на ${s.runtime}` : ''}.`,
-    gridBack: (d, s, dur) => `💡 ${d}: світло з'явилось (${s.gridV} В). ${dur ? `Не було ${dur}. ` : ''}Заряд ${s.soc} %${s.charging ? `, батарея заряджається ${s.charging} Вт` : ''}.`,
+    gridLost: (d, s, sch) => `🔌 ${d}: світло зникло. Станція живиться від батареї. Заряд ${s.soc} %, навантаження ${s.load} Вт${s.runtime ? `, вистачить приблизно на ${s.runtime}` : ''}.${schedNote(sch)}`,
+    gridBack: (d, s, dur, unplanned) => `💡 ${d}: світло з'явилось (${s.gridV} В). ${dur ? `Не було ${dur}. ` : ''}${unplanned ? 'Це було позапланове відключення. ' : ''}Заряд ${s.soc} %${s.charging ? `, батарея заряджається ${s.charging} Вт` : ''}.`,
+    unplanned: (d, sch, s) => `⚠️ ${d}: світла немає, хоча за графіком черги ${sch.queue} воно мало бути${sch.since ? ` (з ${sch.since}${sch.until ? ` до ${sch.until}` : ''})` : ''}. Імовірно позапланове або аварійне відключення. Заряд ${s.soc} %${s.runtime ? `, вистачить приблизно на ${s.runtime}` : ''}.`,
     gridLoad: (d, lvl, s) => `${lvl === 2 ? '🔴 Ризик вибивання ввідного автомата' : '⚠️ Підвищене споживання з мережі'}: ${d}, ≈ ${s.amps} А з ${s.breaker} А ввідного автомата (${s.kw} кВт). Навантаження ${s.va} ВА${s.charge ? ` + заряд батареї ${s.charge} Вт` : ''}.${s.charge ? (s.rec === 0 ? ' Вимкніть заряд від мережі (програма 11) або потужні прилади.' : s.rec ? ` Зменште струм заряду до ≈ ${s.rec} А (програма 11) або вимкніть потужні прилади.` : ' Зменште струм заряду від мережі (програма 11) або вимкніть потужні прилади.') : ' Вимкніть потужні прилади.'}`,
     outLoad: (d, lvl, s) => `${lvl === 2 ? '🔴 Ризик перевантаження станції' : '⚠️ Велике навантаження станції'}: ${d}, ${s.va} ВА з ${s.limit} ВА номіналу${s.battery ? ' (живиться від батареї)' : ''}. ${lvl === 2 ? 'Понад номінал станція вимкне вихід. ' : ''}Вимкніть потужні прилади.`,
     outLoadOk: (d, s) => `✅ ${d}: навантаження станції знову в нормі, ${s.va} ВА з ${s.limit} ВА.`,
@@ -200,8 +214,9 @@ const MSG = {
     fault: (d, x) => `🔴 ${d}: fault. ${x}`,
     warning: (d, x) => `⚠️ ${d}: warning. ${x}`,
     cleared: (d, x, dur) => `✅ ${d}: cleared. ${x}${dur ? ` (lasted ${dur})` : ''}`,
-    gridLost: (d, s) => `🔌 ${d}: grid power lost. Running on the battery. Charge ${s.soc} %, load ${s.load} W${s.runtime ? `, lasts about ${s.runtime}` : ''}.`,
-    gridBack: (d, s, dur) => `💡 ${d}: grid power is back (${s.gridV} V). ${dur ? `It was out for ${dur}. ` : ''}Charge ${s.soc} %${s.charging ? `, battery charging at ${s.charging} W` : ''}.`,
+    gridLost: (d, s, sch) => `🔌 ${d}: grid power lost. Running on the battery. Charge ${s.soc} %, load ${s.load} W${s.runtime ? `, lasts about ${s.runtime}` : ''}.${schedNote(sch)}`,
+    gridBack: (d, s, dur, unplanned) => `💡 ${d}: grid power is back (${s.gridV} V). ${dur ? `It was out for ${dur}. ` : ''}${unplanned ? 'It was an unplanned outage. ' : ''}Charge ${s.soc} %${s.charging ? `, battery charging at ${s.charging} W` : ''}.`,
+    unplanned: (d, sch, s) => `⚠️ ${d}: no grid power although the schedule of queue ${sch.queue} says it should be on${sch.since ? ` (from ${sch.since}${sch.until ? ` to ${sch.until}` : ''})` : ''}. Likely an unplanned or emergency outage. Charge ${s.soc} %${s.runtime ? `, lasts about ${s.runtime}` : ''}.`,
     gridLoad: (d, lvl, s) => `${lvl === 2 ? '🔴 Main breaker trip risk' : '⚠️ High grid consumption'}: ${d}, ≈ ${s.amps} A of the ${s.breaker} A main breaker (${s.kw} kW). Load ${s.va} VA${s.charge ? ` + battery charge ${s.charge} W` : ''}.${s.charge ? (s.rec === 0 ? ' Turn off grid charging (program 11) or heavy appliances.' : s.rec ? ` Lower the grid charge current to about ${s.rec} A (program 11) or switch off heavy appliances.` : ' Lower the grid charge current (program 11) or switch off heavy appliances.') : ' Switch off heavy appliances.'}`,
     outLoad: (d, lvl, s) => `${lvl === 2 ? '🔴 Station overload risk' : '⚠️ High station load'}: ${d}, ${s.va} VA of the ${s.limit} VA rating${s.battery ? ' (running on the battery)' : ''}. ${lvl === 2 ? 'Above the rating the station shuts the output off. ' : ''}Switch off heavy appliances.`,
     outLoadOk: (d, s) => `✅ ${d}: station load is back to normal, ${s.va} VA of ${s.limit} VA.`,
@@ -241,7 +256,7 @@ const clock = (sec) => new Date(sec * 1000).toLocaleTimeString(cfg.lang === 'uk'
 
 // ---------- state tracking ----------
 
-const fresh = () => ({ init: false, alerts: [], alertSince: {}, grid: null, gridSince: null, pending: null, gl: 0, glPending: null, ol: 0, olPending: null, low: [], offline: false, lastT: 0 });
+const fresh = () => ({ init: false, alerts: [], alertSince: {}, grid: null, gridSince: null, pending: null, gl: 0, glPending: null, ol: 0, olPending: null, unplanned: false, low: [], offline: false, lastT: 0 });
 
 function resetState() { state = {}; saveState(); }
 
@@ -308,10 +323,17 @@ async function snapshot(id, s, info) {
     if (st.pending.n >= GRID_CONFIRM) {
       const lostFor = st.gridSince && !st.grid ? s.t - st.gridSince : 0;
       st.grid = g; st.pending = null;
-      if (!first) out.push(['grid', g ? M().gridBack(label, stats(s), lostFor ? hm(lostFor) : '') : M().gridLost(label, stats(s))]);
+      if (!first) out.push(['grid', g ? M().gridBack(label, stats(s), lostFor ? hm(lostFor) : '', st.unplanned) : M().gridLost(label, stats(s), outages.describe(s.t))]);
+      if (g) st.unplanned = false;
       st.gridSince = s.t; st.low = [];
     }
   } else st.pending = null;
+
+  // unplanned outage: the grid is absent but the schedule has said "on" for the last few minutes (and no emergency schedule)
+  if (!first && !st.grid && !st.unplanned && st.gridSince && s.t - st.gridSince >= UNPLANNED_AFTER_S) {
+    const nowSch = outages.describe(s.t), before = outages.describe(s.t - UNPLANNED_AFTER_S);
+    if (nowSch.state === 'on' && before.state === 'on' && !nowSch.emergency) { st.unplanned = true; out.push(['outage', M().unplanned(label, nowSch, stats(s))]); }
+  }
 
   // grid current against the main breaker and station output against the inverter rating:
   // a level change must hold for LOAD_CONFIRM snapshots, and the all-clear waits for a hysteresis band

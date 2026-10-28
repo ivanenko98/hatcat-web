@@ -1,57 +1,57 @@
-import { h } from '../dom.js';
+import { h, icon } from '../dom.js';
 import { t, LANGS, getLang, setLang } from '../i18n.js';
 import { getSession, endSession } from '../api.js';
 import { getTheme, setTheme } from '../theme.js';
-import { store } from '../store.js';
-import { telegramCard } from './telegram-card.js';
-import { limitsCard } from './limits-card.js';
+import { segmented } from '../ui.js';
+import { webMasterOn } from '../notify-prefs.js';
+import { getLimits } from '../limits.js';
+import { getOutages } from '../outages.js';
+import { telegramState, telegramSection } from './telegram-card.js';
+import { notificationsSection } from './notifications-card.js';
+import { limitsSection } from './limits-card.js';
+import { outagesSection } from './outages-card.js';
 
-function segmented(name, options, current, onPick) {
-  return h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': name },
-    Object.entries(options).map(([value, label]) =>
-      h('button', {
-        type: 'button', role: 'radio', 'aria-checked': String(value === current),
-        class: value === current ? 'on' : '', onclick: () => onPick(value),
-      }, label)),
-  );
-}
+const SECTIONS = [
+  { id: 'general', icon: 'home', key: 'secGeneral' },
+  { id: 'notifications', icon: 'pulse', key: 'secNotifications' },
+  { id: 'telegram', icon: 'upload', key: 'secTelegram' },
+  { id: 'outages', icon: 'grid_from', key: 'secOutages' },
+  { id: 'limits', icon: 'socket', key: 'secLimits' },
+];
 
-export function profileView(root, { rerender }) {
+function generalSection(rerender) {
   const s = getSession();
-  root.replaceChildren(
-    h('h1', { class: 'page-title' }, t('profile')),
-    h('div', { class: 'card pad stack' },
-      h('div', { class: 'profile-email' }, s?.email || ''),
-      h('div', { class: 'field' }, h('span', { class: 'field-label' }, t('language')),
-        segmented(t('language'), LANGS, getLang(), (l) => { setLang(l); rerender(); })),
-      h('div', { class: 'field' }, h('span', { class: 'field-label' }, t('theme')),
-        segmented(t('theme'), { system: t('themeSystem'), light: t('themeLight'), dark: t('themeDark') }, getTheme(),
-          (v) => { setTheme(v); rerender(); })),
-      notifyField(rerender),
-      h('p', { class: 'muted small' }, t('readOnlyNote')),
-      h('button', { class: 'btn danger', type: 'button', onclick: () => { if (confirm(t('logoutQuestion'))) endSession('logout'); } }, t('logout')),
-    ),
-    limitsCard(rerender),
-    telegramCard(rerender),
+  return h('section', { class: 'psec' },
+    h('h2', {}, t('secGeneral')),
+    h('div', { class: 'pgroup' },
+      h('div', { class: 'prow stack-row' }, h('div', { class: 'prow-hint' }, t('accountEmail')), h('div', { class: 'prow-email' }, s?.email || '')),
+      h('div', { class: 'prow' }, h('div', { class: 'prow-title' }, t('language')),
+        h('div', { class: 'prow-control' }, segmented(t('language'), LANGS, getLang(), (l) => { setLang(l); rerender(); }))),
+      h('div', { class: 'prow' }, h('div', { class: 'prow-title' }, t('theme')),
+        h('div', { class: 'prow-control' }, segmented(t('theme'), { system: t('themeSystem'), light: t('themeLight'), dark: t('themeDark') }, getTheme(), (v) => { setTheme(v); rerender(); })))),
+    h('p', { class: 'psec-note' }, t('readOnlyNote')),
+    h('div', { class: 'btn-row' }, h('button', { class: 'btn danger', type: 'button', onclick: () => { if (confirm(t('logoutQuestion'))) endSession('logout'); } }, t('logout'))),
   );
 }
 
-// Browser notifications need the user's permission, asked only when they switch the option on.
-function notifyField(rerender) {
-  const supported = typeof Notification !== 'undefined';
-  const on = supported && store.get('notify') && Notification.permission === 'granted';
-  const denied = supported && Notification.permission === 'denied';
-  return h('div', { class: 'field' },
-    h('span', { class: 'field-label' }, t('browserNotify')),
-    h('p', { class: 'muted small' }, t('browserNotifyHint')),
-    !supported ? h('p', { class: 'muted small' }, t('notifyUnsupported'))
-      : denied ? h('p', { class: 'form-err' }, t('notifyDenied'))
-        : h('button', {
-          type: 'button', class: 'btn',
-          onclick: async () => {
-            if (on) store.set('notify', false);
-            else if ((await Notification.requestPermission()) === 'granted') store.set('notify', true);
-            rerender();
-          },
-        }, on ? t('turnOff') : t('allow')));
+// One line of live state under each section name in the rail.
+function railStatus(id, rerender) {
+  if (id === 'general') return getSession()?.email || '';
+  if (id === 'notifications') return t(webMasterOn() ? 'statusOn' : 'statusOff');
+  if (id === 'telegram') {
+    const tg = telegramState(rerender);
+    return !tg ? '…' : tg.paired ? t(tg.enabled ? 'statusOn' : 'statusPaused') : t(tg.configured ? 'tgStatusPair' : 'statusNotSet');
+  }
+  if (id === 'outages') { const o = getOutages(); return o ? t('outageQueue', { q: o.queue }) : '…'; }
+  if (id === 'limits') { const l = getLimits(); return `${l.breakerA} А · ${l.inverterW} ВА`; }
+  return '';
+}
+
+export function profileView(root, { rerender, section }) {
+  const current = SECTIONS.some((x) => x.id === section) ? section : 'general';
+  const nav = h('nav', { class: 'pnav', 'aria-label': t('profile') }, SECTIONS.map((x) =>
+    h('a', { href: '#/profile/' + x.id, class: x.id === current ? 'on' : '', 'aria-current': x.id === current ? 'page' : null },
+      icon(x.icon), h('span', { class: 'pnav-text' }, h('b', {}, t(x.key)), h('small', {}, railStatus(x.id, rerender))))));
+  const content = { general: generalSection, notifications: notificationsSection, telegram: telegramSection, outages: outagesSection, limits: limitsSection }[current](rerender);
+  root.replaceChildren(h('h1', { class: 'page-title' }, t('profile')), h('div', { class: 'profile-layout' }, nav, content));
 }

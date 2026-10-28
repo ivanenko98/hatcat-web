@@ -12,6 +12,7 @@ const path = require('path');
 const history = require('./history');
 const telegram = require('./telegram');
 const limits = require('./limits');
+const outages = require('./outages');
 
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -148,6 +149,11 @@ http.createServer(async (req, res) => {
       await proxy(m[1], req, res);
       return;
     }
+    if (/^\/outages$/.test(req.url)) {
+      if (!history.authorised(req)) { res.writeHead(401, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'unauthorized' })); return; }
+      await outages.handle(req, res, readBody);
+      return;
+    }
     if (/^\/limits$/.test(req.url)) {
       if (!history.authorised(req)) { res.writeHead(401, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'unauthorized' })); return; }
       await limits.handle(req, res, readBody);
@@ -168,6 +174,9 @@ http.createServer(async (req, res) => {
   // Mock data goes to its own folder so it never mixes with real history.
   history.configure(path.join(__dirname, MOCK ? 'data-mock' : 'data'));
   limits.configure(path.join(__dirname, MOCK ? 'data-mock' : 'data'));
+  outages.configure(path.join(__dirname, MOCK ? 'data-mock' : 'data'));
+  // The mock must not call the real operator; point OUTAGES_BASE at a fake one to test the schedule.
+  if (!MOCK || process.env.OUTAGES_BASE) outages.start();
   telegram.configure(path.join(__dirname, MOCK ? 'data-mock' : 'data'));
   history.setNotifier({ snapshot: telegram.snapshot, tick: telegram.tick });
   history.start(async (endpoint, params, token) => JSON.parse((await upstream(endpoint, new URLSearchParams(params).toString(), 'Bearer ' + token)).text));

@@ -10,6 +10,7 @@ import { historyView } from './views/history.js';
 import { settingsView } from './views/settings.js';
 import { forgetSettings } from './settings.js';
 import { loadLimits, forgetLimits } from './limits.js';
+import { outagesFor, forgetOutages } from './outages.js';
 import { notificationsView } from './views/notifications.js';
 import { alertsByDevice } from './alerts.js';
 import { deviceTitle } from './regs.js';
@@ -51,7 +52,7 @@ function render() {
     loginView(main, { notice: loginNotice, onDone: () => { loginNotice = ''; location.hash = '#/devices'; refresh(); } });
     return;
   }
-  if (route.name === 'profile') { profileView(main, { rerender: render }); return; }
+  if (route.name === 'profile') { profileView(main, { rerender: render, section: route.id }); return; }
   if (!data.json) {
     main.replaceChildren(data.error
       ? h('div', { class: 'card pad' }, h('p', { class: 'form-err' }, data.error), h('button', { class: 'btn', onclick: refresh }, t('refresh')))
@@ -90,6 +91,7 @@ function notifyNewAlerts() {
 async function refresh() {
   if (!sessionValid() || data.loading) return;
   loadLimits(render);
+  outagesFor(render); // keeps the schedule warm so the alerts and the nav badge know it before the dashboard opens
   data.loading = true;
   try {
     data.json = await getMyDevices();
@@ -114,6 +116,7 @@ onSessionEnd((reason) => {
   data.json = null;
   forgetSettings();
   forgetLimits();
+  forgetOutages();
   loginNotice = reason === 'expired' ? t('sessionExpired') : '';
   location.hash = '#/login';
   render();

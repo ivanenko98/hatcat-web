@@ -5,6 +5,7 @@ import { telemetry, deviceRow, SURE, NOMINAL_CAPACITY_WH, runtimeHours, pvStatus
 import { todayFor, stat } from '../today.js';
 import { activeAlerts } from '../alerts.js';
 import { getLimits } from '../limits.js';
+import { outageCard } from './outage-card.js';
 import { settingsFor, reg } from '../settings.js';
 import { REG_CYCLES, REG_CUTOFF } from '../programs.js';
 import { deviceHead } from './device-head.js';
@@ -218,6 +219,7 @@ export function stationView(root, { data, deviceId, rerender }) {
     statusLine,
     alertBanner(alerts),
     h('div', { class: 'overview' }, hero(m), socCard(m, cutoff)),
+    outageCard(deviceId, rerender),
     h('div', { class: 'metrics' },
       section(t('pvParams'), 'solar_battery', '--c-pv', [
         pvStatus(m) && [h('dt', {}, t('status'), h('abbr', { class: 'unsure', title: t('unconfirmed') }, '?')), h('dd', { class: 'wrap-text' }, t('pv_' + pvStatus(m)))],
