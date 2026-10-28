@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="520.2" height="79.18" version="1.1" viewBox="0 0 520.2 79.18" xmlns="http://www.w3.org/2000/svg">
+ <g transform="translate(0 -19.07)" stroke-miterlimit="2" stroke-width="0">
+  <path class="c1" d="m0 97.47h17.41v-77.62h-17.41zm49.9-77.62v32.6h-19.41l-2.229 14.19h21.63v30.83h17.41v-77.62z" fill="#fff" style="font-variant-ligatures:normal"/>
+  <path class="c1" d="m129.5 73.63c-4.214 0-8.318-1.22-11.98-3.215l7.389-19.94-7.811-19.74-27.08 66.74h17.74l4.324-11.75c5.213 2.107 10.98 3.217 17.19 3.217 3.642 0 7.064-0.4422 10.38-1.211l-5.772-14.59c-1.461 0.3036-2.922 0.4938-4.382 0.4938z" fill="#fff" style="font-variant-ligatures:normal"/>
+  <polygon class="c3" transform="matrix(1.54,0,0,1.54,-23.57,-95.34)" points="106.2 74.8 94.24 74.8 114.2 125.2 126.2 125.2" fill="#00b855" style="font-variant-ligatures:normal"/>
+  <path class="c1" d="m249.6 19.74v14.64h-62.21v-14.64zm-39.92 23.4c8.096-6.431 17.3 0 17.3 0v54.22h-17.41v-54.22z" fill="#fff" style="font-variant-ligatures:normal"/>
+  <path class="c1" d="m307.5 83.06c7.541 0 14.75-3.77 19.29-9.759l15.97 7.097c-7.318 10.87-20.18 17.85-35.48 17.85-23.95 0-42.03-17.08-42.03-39.81 0-22.4 18.08-39.37 42.03-39.37 15.41 0 28.39 6.986 35.71 17.85l-16.08 7.208c-4.546-5.989-11.75-9.759-19.4-9.759-12.97 0-24.84 10.65-24.84 24.29 0 13.53 11.98 24.51 24.73 24.51z" fill="#fff" style="font-variant-ligatures:normal"/>
+  <polygon class="c3" transform="matrix(1.54,0,0,1.54,247.1,-95.34)" points="114.2 125.2 126.2 125.2 106.2 74.8 94.24 74.8" fill="#00b855" style="font-variant-ligatures:normal"/>
+ </g>
+ <g transform="translate(0 -19.07)" fill="#fff" stroke-miterlimit="2" stroke-width="0">
+  <path class="c1" d="m400.2 73.63c-4.214 0-8.318-1.22-11.98-3.215l7.389-19.94-7.811-19.74-27.08 66.74h17.74l4.324-11.75c5.213 2.107 10.98 3.217 17.19 3.217 3.642 0 7.064-0.4422 10.38-1.211l-5.772-14.59c-1.461 0.3036-2.922 0.4938-4.382 0.4938z" style="font-variant-ligatures:normal"/>
+  <path class="c1" d="m520.2 19.74v14.64h-62.21v-14.64zm-39.92 23.4c8.096-6.431 17.3 0 17.3 0v54.22h-17.41v-54.22z" style="font-variant-ligatures:normal"/>
+ </g>
+</svg>
