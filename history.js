@@ -105,7 +105,7 @@ function record(json) {
     lastTime.set(id, t);
     if (notifier) {
       const device = (json.devices || []).find((d) => String(d.device_id) === id);
-      Promise.resolve(notifier.snapshot(id, snap, device)).catch((e) => console.error('notifier:', e.message));
+      Promise.resolve(notifier.snapshot(id, snap, device, (json.devices || []).length)).catch((e) => console.error('notifier:', e.message));
     }
   }
 }

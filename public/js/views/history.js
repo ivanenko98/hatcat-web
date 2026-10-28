@@ -5,7 +5,7 @@ import { getHistory } from '../api.js';
 import { lineChart, barChart, dataTable } from '../charts.js';
 import { deviceHead } from './device-head.js';
 import { errorText } from './login.js';
-import { getLimits } from '../limits.js';
+import { limitPoint, limitSeries } from '../limit-line.js';
 import { store } from '../store.js';
 
 const CACHE_MS = 60 * 1000;
@@ -41,26 +41,6 @@ async function load(deviceId) {
   return { status, days, points, from, to };
 }
 
-
-// Upper limit of what may be drawn right now: the main breaker while the grid feeds the house (Line/Bypass),
-// the inverter rating otherwise. A point carries its kind so the tooltip can name it.
-function limitPoint(p) {
-  const lim = getLimits();
-  const gridV = (p.K2 || 0) / 10;
-  const onGrid = (p.K1 === 4 || p.K1 === 5) && gridV >= 100;
-  return [p.t, onGrid ? Math.round(lim.breakerA * gridV) : lim.inverterW, onGrid ? 'grid' : 'battery'];
-}
-
-// Hold the previous value until the instant of a change, so the line steps instead of sloping between samples.
-function stepped(points) {
-  const out = [];
-  for (const pt of points) {
-    const prev = out[out.length - 1];
-    if (prev && prev[1] !== pt[1] && pt[0] - prev[0] <= 900) out.push([pt[0] - 1, prev[1], prev[2]]);
-    out.push(pt);
-  }
-  return out;
-}
 
 export function historyView(root, { data, deviceId, rerender }) {
   const d = (data.json?.devices || []).find((x) => String(x.device_id) === String(deviceId));
@@ -142,14 +122,7 @@ export function historyView(root, { data, deviceId, rerender }) {
     ];
     const xFormat = (sec, long) => new Date(sec * 1000).toLocaleTimeString(locale(), long ? { hour: '2-digit', minute: '2-digit' } : { hour: '2-digit' });
     const opts = { from: from / 1000, to: to / 1000, xFormat };
-    const lim = getLimits();
-    const limitPts = stepped(pts.map(limitPoint));
-    if (showLimit) {
-      series.push({
-        label: t('limitLine'), color: css('--text'), dashed: true, points: limitPts,
-        labelOf: (p) => (p[2] === 'grid' ? t('limitGridTip', { a: lim.breakerA }) : t('limitBatteryTip')),
-      });
-    }
+    if (showLimit) series.push(limitSeries(pts));
     const powerBox = h('div', {});
     const socBox = h('div', {});
     powerCard.append(powerBox, dataTable(t('showTable'), [t('time'), t('solar'), t('grid'), t('home'), t('limitLine')],

@@ -5,7 +5,9 @@ import { telemetry, deviceRow, SURE, NOMINAL_CAPACITY_WH, runtimeHours, pvStatus
 import { todayFor, stat } from '../today.js';
 import { activeAlerts } from '../alerts.js';
 import { getLimits } from '../limits.js';
-import { outageCard } from './outage-card.js';
+import { outageCards } from './outage-card.js';
+import { trendCard } from './trend-card.js';
+import { store } from '../store.js';
 import { settingsFor, reg } from '../settings.js';
 import { REG_CYCLES, REG_CUTOFF } from '../programs.js';
 import { deviceHead } from './device-head.js';
@@ -87,9 +89,9 @@ function flowLegend(m) {
     ? (f.chargeFrom ? t('batteryChargingFrom', { src: t(f.chargeFrom === 'grid' ? 'chargeSrcGrid' : 'chargeSrcSolar') }) : t('batteryCharging')) + ' · ' + power(f.batteryW)
     : f.battery === 'discharging' ? t('batteryDischarging') + ' · ' + power(f.batteryW) : t('batteryNotCharging');
   return h('div', { class: 'flow-legend' },
-    h('div', { class: 'flow-line', 'data-src': f.home || 'none' }, h('i', { class: 'flow-dot ' + (f.home === 'battery' ? 'battery' : f.home === 'solar' ? 'pv' : 'grid') }), h('span', {}, t('homePoweredBy') + ' '), h('b', {}, homeText),
-      f.home && h('span', { class: 'muted' }, ' · ' + power(f.loadW))),
-    h('div', { class: 'flow-line', 'data-battery': f.battery }, h('i', { class: 'flow-dot battery' + (f.battery === 'idle' ? ' off' : '') }), h('b', {}, batteryText)),
+    h('div', { class: 'flow-line', 'data-src': f.home || 'none' }, h('i', { class: 'flow-dot ' + (f.home === 'battery' ? 'battery' : f.home === 'solar' ? 'pv' : 'grid') }),
+      h('span', { class: 'flow-copy' }, t('homePoweredBy') + ' ', h('b', {}, homeText), f.home && h('span', { class: 'muted' }, ' · ' + power(f.loadW)))),
+    h('div', { class: 'flow-line', 'data-battery': f.battery }, h('i', { class: 'flow-dot battery' + (f.battery === 'idle' ? ' off' : '') }), h('span', { class: 'flow-copy' }, h('b', {}, batteryText))),
   );
 }
 
@@ -174,6 +176,41 @@ function sourceIcons(m) {
     h('span', { class: 'source' + (on[k] ? ' on ' + k : ''), title: t(label) + (on[k] ? '' : ' (–)') }, icon(ic))));
 }
 
+// One headline number with a few supporting lines; `level` colours the number when a limit is near.
+function tile(titleKey, iconName, accent, value, subs, level = 0) {
+  return h('div', { class: 'card tile', style: { '--tile-c': `var(${accent})` } },
+    h('div', { class: 'tile-title' }, icon(iconName), t(titleKey)),
+    h('div', { class: 'tile-value' + (level === 2 ? ' bad' : level === 1 ? ' warn' : '') }, value),
+    ...subs.filter(Boolean).map((x) => (typeof x === 'string' ? h('div', { class: 'tile-sub' }, x) : x)));
+}
+
+// The numbers people look for first; the tables below hold the rest.
+function tiles(m, ctx) {
+  const lim = getLimits();
+  const va = outputLoadVA(m);
+  const batState = m.batteryPower > 20 ? 'charging' : m.batteryPower < -20 ? 'discharging' : 'idle';
+  const temps = [m.cells, m.bms, m.inverter].filter(Boolean);
+  const maxT = temps.length ? Math.max(...temps.map((r) => r.max)) : null;
+  const range = (r) => `${num(r.min, 1)}–${num(r.max, 1)}`;
+  const pvState = pvStatus(m);
+  return h('div', { class: 'tiles' },
+    tile('solar', 'solar_battery', '--c-pv', power(m.pvPower), [
+      pvState && t('pvShort_' + pvState),
+      ctx.pv && ctx.pv.max.v > 0 && t('maxShort', { v: power(ctx.pv.max.v), t: clock(ctx.pv.max.t * 1000) })]),
+    tile('grid', 'grid_from', '--c-grid', m.gridPresent ? unit(m.gridVoltage, 'V', 0) : t('gridAbsent'), [
+      m.gridPresent && `${num(m.gridFreq, 1)} Hz`,
+      m.gridAmps > 0 && t('tileOf', { a: `${num(m.gridAmps, 1)} A`, b: `${lim.breakerA} A` }),
+      m.gridAmps > 0 && limitGauge(m.gridAmps, lim.breakerA, `${num(m.gridAmps, 1)} / ${lim.breakerA} A`)], levelOf(m.gridAmps || 0, lim.breakerA, lim)),
+    tile('home', 'home', '--c-load', power(m.loadPower), [
+      va > 0 && t('tileOf', { a: `${num(va)} VA`, b: `${lim.inverterW} VA` }),
+      va > 0 && limitGauge(va, lim.inverterW, `${num(va)} / ${lim.inverterW} VA`),
+      ctx.load && ctx.load.avg != null && t('avgShort', { v: power(ctx.load.avg) })], levelOf(va, lim.inverterW, lim)),
+    tile('battery', 'battery', '--c-bat', m.batteryPower != null ? power(Math.abs(m.batteryPower)) : '–', [
+      t(batState), m.batteryVoltage != null && `${num(m.batteryVoltage, 1)} V`]),
+    tile('temperature', 'temperature', '--c-temp', maxT != null ? `${num(maxT, 1)} °C` : '–', [
+      m.cells && `${t('cells')} ${range(m.cells)}`, m.inverter && `${t('inverter')} ${range(m.inverter)}`]));
+}
+
 export function stationView(root, { data, deviceId, rerender }) {
   const d = (data.json?.devices || []).find((x) => String(x.device_id) === String(deviceId));
   if (!d) { location.hash = '#/devices'; return; }
@@ -214,12 +251,9 @@ export function stationView(root, { data, deviceId, rerender }) {
   );
   raw.open = rawOpen;
 
-  mount(root,
-    ...head,
-    statusLine,
-    alertBanner(alerts),
-    h('div', { class: 'overview' }, hero(m), socCard(m, cutoff)),
-    outageCard(deviceId, rerender),
+  // The detail tables are folded away by default and remember what the person chose.
+  const details = h('details', { class: 'card details-all' },
+    h('summary', {}, t('allMetrics')),
     h('div', { class: 'metrics' },
       section(t('pvParams'), 'solar_battery', '--c-pv', [
         pvStatus(m) && [h('dt', {}, t('status'), h('abbr', { class: 'unsure', title: t('unconfirmed') }, '?')), h('dd', { class: 'wrap-text' }, t('pv_' + pvStatus(m)))],
@@ -231,7 +265,6 @@ export function stationView(root, { data, deviceId, rerender }) {
         [h('dt', {}, t('status')), h('dd', {}, m.gridPresent ? t('gridAvailable') : t('gridAbsent'))],
         row(t('voltage'), 'gridVoltage', m, 'V', 1), row(t('frequency'), 'gridFreq', m, 'Hz', 1), row(t('power'), 'gridPower', m, 'W'),
         m.gridAmps > 0 && [h('dt', {}, t('gridAmps'), h('abbr', { class: 'unsure', title: t('unconfirmed') }, '?')), h('dd', {}, `${num(m.gridAmps, 1)} / ${getLimits().breakerA} A`)],
-        m.gridAmps > 0 && [h('dt', { class: 'full' }, limitGauge(m.gridAmps, getLimits().breakerA, `${num(m.gridAmps, 1)} / ${getLimits().breakerA} A`))],
         chargeAdvice(m),
         gridV && atTime(t('maxVoltageToday'), gridV.max, 'V', 1, 100),
         gridHz && atTime(t('maxFreqToday'), gridHz.max, 'Hz', 1, 40),
@@ -247,7 +280,6 @@ export function stationView(root, { data, deviceId, rerender }) {
       section(t('loadParams'), 'socket', '--c-load', [
         row(t('power'), 'loadPower', m, 'W'), row(t('apparentPower'), 'outVA', m, 'VA'), row(t('loadLevel'), 'loadPercent', m, '%'),
         outputLoadVA(m) > 0 && [h('dt', {}, t('inverterLimit')), h('dd', {}, `${num(outputLoadVA(m))} / ${getLimits().inverterW} VA`)],
-        outputLoadVA(m) > 0 && [h('dt', { class: 'full' }, limitGauge(outputLoadVA(m), getLimits().inverterW, `${num(outputLoadVA(m))} / ${getLimits().inverterW} VA`))],
         load && load.avg != null && [h('dt', {}, t('avgToday')), h('dd', {}, power(load.avg))],
         load && atTime(t('maxLoadToday'), load.max, 'W'),
       ]),
@@ -262,7 +294,19 @@ export function stationView(root, { data, deviceId, rerender }) {
         pair(t('inverter'), m.inverter, ['tempInv1', 'tempInv2']),
       ]),
     ),
-    todayNote(today),
+    todayNote(today));
+  details.open = store.get('detailsOpen') === true; // folded until the person opens it once
+  details.querySelector('summary').addEventListener('click', () => store.set('detailsOpen', !details.open)); // state before the toggle
+
+  const outage = outageCards(deviceId, rerender);
+  mount(root,
+    ...head,
+    statusLine,
+    alertBanner(alerts),
+    // One grid: on a wide screen the picture sits beside the battery and schedule cards; on a phone the order is
+    // picture, battery, headline numbers, schedule, trend.
+    h('div', { class: 'overview' }, hero(m), socCard(m, cutoff), outage?.status, outage?.schedule, tiles(m, { pv, load }), trendCard(deviceId, rerender)),
+    details,
     raw,
   );
 }

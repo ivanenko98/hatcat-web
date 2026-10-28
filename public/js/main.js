@@ -131,7 +131,8 @@ window.addEventListener('resize', () => {
   resizeTimer = setTimeout(() => {
     if (window.innerWidth === lastWidth) return; // mobile URL bar changes only the height
     lastWidth = window.innerWidth;
-    if (parseRoute().sub === 'history') render();
+    const r = parseRoute();
+    if (r.sub === 'history' || (r.name === 'device' && !r.sub)) render();
   }, 200);
 });
 

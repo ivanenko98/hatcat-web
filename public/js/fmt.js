@@ -8,13 +8,13 @@ export function num(v, digits = 0) {
 // Power reads better in kW above 1000 W.
 export function power(w) {
   if (w == null || !Number.isFinite(w)) return '–';
-  return Math.abs(w) >= 1000 ? num(w / 1000, 2) + ' kW' : num(w) + ' W';
+  return Math.abs(w) >= 1000 ? num(w / 1000, 2) + '\u00A0kW' : num(w) + '\u00A0W'; // no break between number and unit
 }
 
 export function unit(v, u, digits = 0) {
   if (v == null || !Number.isFinite(v)) return '–';
   if (u === 'W') return power(v);
-  return num(v, digits) + (u ? ' ' + u : '');
+  return num(v, digits) + (u ? '\u00A0' + u : '');
 }
 
 // "2 h 36 min" for an estimate in hours.

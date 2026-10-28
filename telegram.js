@@ -296,12 +296,19 @@ function levelChange(st, field, want, calm, first) {
   return candidate;
 }
 
+// "🔌 HATCAT 2A6E: світло зникло" -> "🔌 світло зникло"; "⚠️ Велике навантаження: HATCAT 2A6E, 3500 ВА" -> "⚠️ Велике навантаження: 3500 ВА".
+function withoutLabel(text, label) {
+  return text.split(`${label}: `).join('').split(`${label}, `).join('');
+}
+
 // Called for every NEW snapshot (history.js deduplicates by Time). Always tracks state; sends only when enabled.
-async function snapshot(id, s, info) {
+async function snapshot(id, s, info, deviceCount) {
   await loadTexts();
   id = String(id);
   const st = state[id] || (state[id] = fresh());
   const label = deviceLabel(id, info);
+  const single = deviceCount === 1; // one device on the account: its name in every message is noise
+  st.single = single;
   const out = []; // [eventKey, text]
   const first = !st.init;
 
@@ -363,7 +370,7 @@ async function snapshot(id, s, info) {
   st.init = true;
   saveState();
 
-  if (cfg.enabled && ready()) for (const [key, text] of out) if (cfg.events[key]) await send(text);
+  if (cfg.enabled && ready()) for (const [key, text] of out) if (cfg.events[key]) await send(single ? withoutLabel(text, label) : text);
 }
 
 // Called once a minute by the poller (also while the session is dead): offline detection, session expiry, retry queue.
@@ -375,7 +382,7 @@ async function tick(info) {
     for (const [id, st] of Object.entries(state)) {
       if (st.init && !st.offline && st.lastT && nowS - st.lastT > OFFLINE_S && info && info.active) {
         st.offline = true; saveState();
-        if (cfg.events.offline) await send(M().offline(deviceLabel(id, null), clock(st.lastT)));
+        if (cfg.events.offline) { const label = deviceLabel(id, null); const text = M().offline(label, clock(st.lastT)); await send(st.single ? withoutLabel(text, label) : text); }
       }
     }
     if (info && info.tokenExpires) {

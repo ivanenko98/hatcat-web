@@ -359,30 +359,16 @@ input[type=checkbox] { accent-color: var(--primary); width: 16px; height: 16px; 
 .outage-head h3 { margin: 0; font-size: 16px; }
 .outage-status { display: flex; align-items: center; gap: 10px; font-size: 18px; }
 .outage-status .dot { width: 12px; height: 12px; }
-.outage-status.on .dot { background: var(--ok); } .outage-status.off .dot { background: var(--bad); } .outage-status.switch .dot { background: var(--warn); }
+.outage-status.on .dot { background: var(--ok); } .outage-status.off .dot { background: var(--bad); } .outage-status.switching .dot { background: var(--warn); }
 .outage-next { color: var(--muted); }
 .tl-row { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: start; }
 @media (max-width: 520px) { .tl-row { grid-template-columns: 1fr; gap: 2px; } }
 .tl-label { font-size: 13px; color: var(--muted); font-weight: 600; padding-top: 2px; }
-.tl-block { position: relative; padding-bottom: 18px; min-width: 0; }
-.tl { position: relative; display: grid; grid-template-columns: repeat(48, 1fr); height: 18px; border-radius: 4px; overflow: hidden; gap: 0; }
-.tl-actual { height: 7px; margin-top: 3px; }
-.tl-cell { display: block; }
-.tl-cell.on { background: color-mix(in srgb, var(--ok) 70%, var(--surface)); }
-.tl-cell.off { background: var(--bad); }
-.tl-cell.switch { background: var(--warn); }
-.tl-cell.none { background: var(--surface-2); border-top: 1px dashed var(--border); }
-.tl-cell.past { opacity: .5; }
-.tl-cell.bad { outline: 2px solid var(--text); outline-offset: -2px; }
-.tl-now { position: absolute; top: -3px; width: 2px; height: 24px; background: var(--text); transform: translateX(-1px); }
-.tl-ticks { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; font-size: 11px; color: var(--muted); }
-.tl-ticks span { position: absolute; transform: translateX(-50%); }
-.tl-ticks span:first-child { transform: none; }
 .tl-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin-left: 82px; }
 @media (max-width: 520px) { .tl-legend { margin-left: 0; } }
 .tl-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.tl-legend .tl-cell { width: 14px; height: 10px; border-radius: 2px; }
-.tl-key-actual { background: repeating-linear-gradient(90deg, var(--ok) 0 3px, var(--bad) 3px 6px); height: 5px !important; }
+.tl-legend .hl-half { display: inline-block; width: 14px; height: 12px; border-radius: 2px; }
+.tl-key-actual { display: inline-block; width: 14px; height: 5px; background: repeating-linear-gradient(90deg, var(--ok) 0 3px, var(--bad) 3px 6px); }
 .outage-windows { display: grid; gap: 2px; }
 .form-warn { color: var(--warn); }
 .queue-field select { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 12px; color: var(--text); font-size: 16px; max-width: 160px; }
@@ -517,3 +503,111 @@ input[type=checkbox] { accent-color: var(--primary); width: 16px; height: 16px; 
   #nav a { padding: 6px 6px; font-size: 13.5px; }
   .nav-badge { min-width: 16px; margin-left: 4px; padding: 0 4px; font-size: 11px; line-height: 16px; }
 }
+
+/* ---- overview: side column, tiles, trend, folded details ---- */
+.overview { align-items: start; }
+.overview-side { display: grid; gap: 16px; min-width: 0; }
+.soc-card { flex-direction: row !important; justify-content: flex-start; align-items: center; gap: 18px; padding: 16px 18px; }
+.soc-wrap { width: 118px; flex: none; }
+.soc-num { font-size: 32px; }
+.soc-meta { flex: 1; max-width: none; text-align: left; }
+.soc-state, .soc-runtime { text-align: left; }
+.overview-side .outage-card { margin: 0; }
+.overview-side .tl-row { grid-template-columns: 1fr; gap: 2px; }
+.overview-side .tl-legend { margin-left: 0; }
+
+.tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+@media (max-width: 1000px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
+.tile { padding: 14px 16px; border-top: 3px solid var(--tile-c); display: grid; gap: 2px; align-content: start; min-width: 0; }
+.tile-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.tile-title .icon { color: var(--tile-c); width: 18px; height: 18px; }
+.tile-value { font-size: 28px; font-weight: 700; line-height: 1.15; margin-top: 4px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tile-value.warn { color: var(--warn); }
+.tile-value.bad { color: var(--bad); }
+.tile-sub { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tile .limit-gauge { margin: 6px 0 2px; }
+
+.trend-card { margin: 0 0 16px; }
+.trend-box { min-height: 60px; }
+
+.details-all { margin-bottom: 16px; padding: 0; }
+.details-all > summary { cursor: pointer; padding: 14px 18px; font-weight: 700; list-style-position: inside; }
+.details-all .metrics { margin: 0; padding: 0 16px 16px; align-items: start; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+.details-all .metric { box-shadow: none; }
+.details-all .today-note { margin: 0 18px 14px; }
+@media (max-width: 860px) { .soc-card { padding: 14px; } .soc-wrap { width: 96px; } .soc-num { font-size: 26px; } }
+
+/* overview as one grid (replaces the earlier side-column wrapper) */
+.overview { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); grid-template-rows: auto auto; gap: 16px; align-items: start; }
+.overview > .hero { grid-column: 1; grid-row: 1 / span 2; }
+.overview > .soc-card { grid-column: 2; grid-row: 1; align-self: stretch; align-content: center; }
+.overview > .outage-card { grid-column: 2; grid-row: 2; margin: 0; align-self: stretch; display: flex; flex-direction: column; }
+
+.overview > .outage-strip-card { grid-column: 1 / -1; margin: 0; display: grid; gap: 12px; }
+.overview > .tiles, .overview > .trend-card { grid-column: 1 / -1; margin: 0; }
+.overview .tl-row { grid-template-columns: 1fr; gap: 2px; }
+.overview .tl-legend { margin-left: 0; }
+.flow-line { flex-wrap: nowrap; align-items: flex-start; }
+.flow-line .flow-dot { margin-top: 6px; }
+.flow-copy { min-width: 0; }
+@media (max-width: 860px) {
+  .overview { grid-template-columns: minmax(0, 1fr); }
+  .overview > * { grid-column: 1 !important; grid-row: auto !important; }
+  .overview > .hero { order: 1; }
+  .overview > .soc-card { order: 2; }
+  .overview > .tiles { order: 3; }
+  .overview > .outage-card { order: 4; }
+  .overview > .outage-strip-card { order: 5; }
+  .overview > .trend-card { order: 6; }
+}
+@media (max-width: 640px) { .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+.details-all { margin-top: 16px; }
+
+.chart-svg .line.ref { stroke-width: 1.8; opacity: .9; }
+.chart-tools { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+
+
+/* outage schedule: one column per hour, tile = two half hours. All 24 hours always fit the width; below ~700px
+   the strip turns into one continuous bar with a single icon per outage and only every third hour keeps its label. */
+.hl-block { min-width: 0; container-type: inline-size; }
+.hl { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding-bottom: 6px; }
+.hl-row { display: flex; gap: 3px; position: relative; min-width: 0; }
+.hl-row > * { flex: 1 1 0; min-width: 0; }
+.past { opacity: .55; }
+.hl-label { display: grid; white-space: nowrap; font-size: 11px; line-height: 1.25; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.hl-label.current { color: var(--text); font-weight: 700; }
+.hl-tile { position: relative; display: flex; height: 34px; border-radius: 4px; overflow: hidden; }
+.hl-half { position: relative; flex: 1 1 0; display: block; }
+.hl-half.on, .hl-half.none { background: var(--surface-2); }
+.hl-half.off { background: color-mix(in srgb, var(--bad) 26%, var(--surface-2)); }
+.hl-half.switching { background: color-mix(in srgb, var(--warn) 30%, var(--surface-2)); }
+.hl-half.bad { outline: 2px solid var(--text); outline-offset: -2px; }
+.hl-tile > .hl-icon { position: absolute; inset: 0; margin: auto; width: 18px; height: 18px; color: var(--bad); }
+.hl-run { display: none; }
+.hl-now { position: absolute; right: 4px; bottom: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px var(--surface); }
+.hl-actual { display: flex; height: 5px; border-radius: 2px; overflow: hidden; }
+.hl-actual .hl-half.on { background: var(--ok); }
+.hl-actual .hl-half.off { background: var(--bad); }
+.hl-actual .hl-half.none { background: var(--surface-2); }
+@container (max-width: 700px) {
+  .hl-row { gap: 0; }
+  .hl-tiles { border-radius: 4px; overflow: hidden; }
+  .hl-tile { border-radius: 0; }
+  .hl-actual { border-radius: 0; }
+  .hl-tile > .hl-icon { display: none; }
+  .hl-run { display: grid; place-items: center; position: absolute; top: 0; height: 34px; flex: none; pointer-events: none; }
+  .hl-run .hl-icon { width: 18px; height: 18px; color: var(--bad); }
+  .hl-label span:last-child { display: none; }
+  .hl-label:not(.mark) { visibility: hidden; }
+  .hl-label.mark { justify-items: start; text-align: left; }
+  .hl-now { right: auto; left: 50%; bottom: 3px; width: 7px; height: 7px; transform: translateX(-50%); }
+}
+
+/* outage windows as chips (side card) */
+.outage-windows { display: grid; gap: 12px; }
+.win-row { display: grid; gap: 6px; }
+.win-day { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.win-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.win-chip { padding: 3px 10px; border-radius: 6px; font-size: 14px; font-variant-numeric: tabular-nums; background: color-mix(in srgb, var(--bad) 22%, var(--surface-2)); color: var(--text); }
+.win-chip.past { opacity: .5; }
