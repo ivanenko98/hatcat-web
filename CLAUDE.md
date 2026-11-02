@@ -7,6 +7,7 @@
 - `docs/PRODUCT.md`: опис продукту і скоуп;
 - `docs/SPEC.md`: технічне завдання, етапи, критерії приймання;
 - `docs/TASKS.md`: розбивка на задачі та їхній статус. Оновлювати після кожної виконаної задачі.
+- `docs/DEPLOY.md`: розгортання в Docker на Windows (`Dockerfile`, `docker-compose.yml`).
 
 Ключові факти про API (режим K1: 3 від батареї, 4 від мережі, 6 аварія; K2/K3 мережа, K8 струм заряду, K15/K16 маски аварій і попереджень): сервер вимагає `User-Agent: Dart/3.7 (dart:io)`; `m_get_device_settings` приймає `device_id` (не `id_device`); `m_get_device_data` не працює, а вся телеметрія є в `m_get_my_device`.
 

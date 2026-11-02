@@ -1,0 +1,16 @@
+services:
+  hatcat-web:
+    build: .
+    image: hatcat-web:latest
+    container_name: hatcat-web
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Kyiv
+    ports:
+      # Лише localhost хоста: назовні віддає Tailscale Serve, а не відкритий порт.
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - hatcat-data:/app/data
+
+volumes:
+  hatcat-data:

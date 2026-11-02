@@ -1,0 +1,13 @@
+.git
+.gitignore
+data
+data-mock
+captures
+reverse
+screenshots-mob-app
+docs
+*.apk
+*.md
+Dockerfile
+docker-compose.yml
+.dockerignore
