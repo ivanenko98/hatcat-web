@@ -11,3 +11,4 @@ docs
 Dockerfile
 docker-compose.yml
 .dockerignore
+*.tgz

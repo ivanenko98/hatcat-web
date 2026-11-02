@@ -31,14 +31,24 @@ docker compose up -d --build
 
 ## Дані
 
-Усе стан (сесія, історія, `telegram.json`, ліміти, кеш відключень) лежить у томі `hatcat-data` (`/app/data` у контейнері). Це іменований том, а не bind-mount: на NTFS не працюють права 0600.
+Увесь стан (сесія, історія, `telegram.json`, ліміти, кеш відключень) лежить у томі `hatcat-data` (`/app/data` у контейнері). Це іменований том, а не bind-mount: на NTFS не працюють права 0600.
 
-Перенос з Linux-машини (зупинити там сервіс, щоб файли були узгоджені):
+Перенос з Linux-машини. Архів містить токени (`session.json`, `telegram.json`), тому передавати лише напряму (scp, USB, Tailscale file send), не через хмару чи месенджер.
+
+```bash
+# На Linux: зупинити сервіс, щоб не було двох екземплярів, і спакувати data/
+systemctl --user stop hatcat-web
+tar czf hatcat-data.tgz -C data .
+```
 
 ```powershell
-# data/ скопіювати поруч, у папку .\data-import
-docker run --rm -v hatcat-data:/app/data -v ${PWD}/data-import:/src alpine sh -c "cp -a /src/. /app/data/ && chown -R 1000:1000 /app/data"
+# На Windows: hatcat-data.tgz лежить у папці проєкту
+docker compose up --no-start
+docker run --rm -v hatcat-data:/app/data -v ${PWD}:/src alpine sh -c "tar xzf /src/hatcat-data.tgz -C /app/data && chown -R 1000:1000 /app/data && chmod 600 /app/data/*.json"
+docker compose up -d --build
 ```
+
+Після переносу видалити `hatcat-data.tgz` з обох машин.
 
 Резервна копія:
 
